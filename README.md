@@ -1,11 +1,15 @@
 # ComfyUI即梦AI插件
 
-> 将即梦AI的强大图片生成功能集成到ComfyUI中的官方插件
+> 将即梦AI的强大图片生成功能集成到ComfyUI中的官方插件。
+
+>使用本插件完全免费，图片和视频生成所消耗的积分为官方赠送，因此使用前请注册并登录官方账号并领取积分。
+
+> 请遵守官方商业许可，如需求较大建议充值会员解锁更多权益。
 
 ## 🎯 **功能特点**
 
 - 🎨 **高质量文生图**: 基于即梦AI的先进图像生成技术
-- 🎭 **多模型支持**: 支持图片3.1、3.0、2.1、2.0 Pro、2.0、XL Pro等多种模型
+- 🎭 **多模型支持**: 支持图片3.1、3.0、2.1、2.0 Pro、2.0等多种模型
 - 📐 **多比例选择**: 支持1:1、2:3、4:3、9:16、16:9等多种图像比例
 - 🧩 **原生集成**: 完全集成ComfyUI工作流，支持保存和分享
 - ⚡ **智能处理**: 自动处理排队、重试和错误恢复
@@ -23,7 +27,7 @@
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/your-repo/ComfyUI_Jimeng_Nodes.git
+git clone https://github.com/Lingyuzhou111/ComfyUI_Jimeng_Nodes.git
 ```
 
 ## ⚙️ **配置步骤**
@@ -49,20 +53,6 @@ git clone https://github.com/your-repo/ComfyUI_Jimeng_Nodes.git
     "accounts": [
         {
             "sessionid": "你复制的sessionid值",
-            "description": "我的主账号"
-        }
-    ]
-}
-```
-
-#### 完整配置（推荐，解决认证问题）
-```json
-{
-    "accounts": [
-        {
-            "sessionid": "你的sessionid",
-            "web_id": "你的web_id",
-            "full_cookie": "完整的Cookie字符串",
             "description": "我的主账号"
         }
     ]
@@ -182,19 +172,6 @@ git clone https://github.com/your-repo/ComfyUI_Jimeng_Nodes.git
 }
 ```
 
-### 自定义模型
-
-```json
-{
-    "models": {
-        "custom": {
-            "name": "自定义模型",
-            "description": "我的自定义模型"
-        }
-    }
-}
-```
-
 ## 📚 **API参数说明**
 
 ### 支持的模型
@@ -206,7 +183,6 @@ git clone https://github.com/your-repo/ComfyUI_Jimeng_Nodes.git
 | 2.1 | 图片 2.1 | 稳定的结构和更强的影视质感，支持生成中、英文文字 |
 | 2.0p | 图片 2.0 Pro | 大幅提升了多样性和真实的照片质感 |
 | 2.0 | 图片 2.0 | 更精准的描述词响应和多样的风格组合 |
-| xl | 图片 XL Pro | 增强英文生成能力和参考图可控能力 |
 
 ### 支持的比例
 
@@ -253,38 +229,5 @@ ComfyUI控制台会显示详细的日志信息，包括：
 - 插件初始化状态
 - API调用过程
 - 错误信息和调试信息
-
-## 🔄 **更新日志**
-
-### v1.0.0 (2024-01-01)
-- ✨ 首次发布
-- 🎨 支持基础文生图功能
-- 📐 支持多种模型和比例
-- 🔧 简化配置系统
-
-## 🚧 **开发计划**
-
-- [ ] 支持参考图生成（Image-to-Image）
-- [ ] 支持图片编辑功能
-- [ ] 支持视频生成
-- [ ] 支持批量处理
-- [ ] 增加更多模型支持
-
-## 📄 **许可证**
-
-MIT License - 请参阅LICENSE文件了解详情
-
-## 🤝 **贡献**
-
-欢迎提交Issue和Pull Request来帮助改进这个插件！
-
-## 📞 **支持**
-
-如果您在使用过程中遇到任何问题，请：
-1. 查看本README的故障排除部分
-2. 在GitHub仓库中提交Issue
-3. 加入我们的讨论群
-
----
 
 *注意: 使用即梦AI服务需要遵守相关服务条款，可能产生相应费用。* 
