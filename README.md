@@ -103,34 +103,21 @@ git clone https://github.com/Lingyuzhou111/Comfyui_Free_Jimeng.git
 ### 示例工作流
 
 #### 基础文生图工作流
-```
-即梦AI生图节点 → 预览图片节点
-    ↓
-保存图片节点
-```
+<img width="1245" height="1141" alt="基础文生图" src="https://github.com/user-attachments/assets/ae0d1641-b445-4844-a889-11d76b4f5ff9" />
+
 
 #### 文生图+高清化工作流
-```
-即梦AI生图节点 → 即梦AI图片高清化节点 → 预览图片节点
-    ↓              ↓                    ↓
-保存原始图片节点  保存高清图片节点
-```
+<img width="2170" height="1035" alt="文生图+超清放大" src="https://github.com/user-attachments/assets/4d661c95-eb78-4c35-80b7-a1f7255f3517" />
+
 
 **连接说明**：
 - 将即梦AI生图节点的 `history_id` 输出连接到高清化节点的 `history_id` 输入
 - 从下拉框中选择要处理的图片序号（1-4）
 - 高清化节点会自动获取对应的图片信息并进行处理
 
-#### 多图片处理工作流
-```
-即梦AI生图节点 → 即梦AI图片高清化节点(图片1) → 预览图片节点
-    ↓              ↓
-即梦AI图片高清化节点(图片2) → 预览图片节点
-    ↓
-即梦AI图片高清化节点(图片3) → 预览图片节点
-    ↓
-即梦AI图片高清化节点(图片4) → 预览图片节点
-```
+#### 视频工作流
+<img width="985" height="1135" alt="首尾帧视频" src="https://github.com/user-attachments/assets/6a4dd414-c833-48bb-aa86-ff3258744f18" />
+
 
 ### 高清化功能特点
 
