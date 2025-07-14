@@ -119,14 +119,6 @@ git clone https://github.com/Lingyuzhou111/Comfyui_Free_Jimeng.git
 <img width="985" height="1135" alt="首尾帧视频" src="https://github.com/user-attachments/assets/6a4dd414-c833-48bb-aa86-ff3258744f18" />
 
 
-### 高清化功能特点
-
-- **智能选择**: 通过下拉框（1-4）精确选择要处理的图片
-- **无缝集成**: 完美对接上游即梦AI生图节点，无需额外配置
-- **高质量输出**: 使用即梦AI的高清化技术，显著提升图片质量
-- **自动处理**: 自动处理WebP格式转换，确保ComfyUI兼容性
-- **积分管理**: 自动检查积分余额，确保有足够积分进行高清化处理
-
 ## 🔧 **高级配置**
 
 ### 超时设置
