@@ -1,0 +1,107 @@
+{
+    "description": "即梦AI ComfyUI插件配置文件",
+    "version": "1.1.0",
+    
+    "accounts": [
+        {
+            "sessionid": "在这里填入你的sessionid",
+            "description": "主账号"
+        }
+    ],
+    
+    "timeout": {
+        "base_timeout": 30,
+        "max_wait_time": 300,
+        "check_interval": 10,
+        "max_retries": 3
+    },
+    
+    "params": {
+        "ratios": {
+            "1:1": {"width": 1328, "height": 1328},
+            "2:3": {"width": 1056, "height": 1584},
+            "3:4": {"width": 1104, "height": 1472},
+            "4:3": {"width": 1472, "height": 1104},
+            "3:2": {"width": 1584, "height": 1056},
+            "16:9": {"width": 1664, "height": 936},
+            "9:16": {"width": 936, "height": 1664}
+        },
+        "default_ratio": "1:1",
+        "models": {
+            "3.1": {
+                "name": "图片 3.1",
+                "model_req_key": "high_aes_general_v30l_art_fangzhou:general_v3.0_18b",
+                "description": "影视质感，文字更准，直出2k高清图",
+                "features": ["新模型", "默认场景", "人脸交换", "背景绘画", "文本到图像生成", "ETTA", "角色生成"]
+            },
+            "3.0": {
+                "name": "图片 3.0",
+                "model_req_key": "high_aes_general_v30l:general_v3.0_18b",
+                "description": "影视质感，文字更准，直出2k高清图",
+                "features": ["新模型", "默认场景", "人脸交换", "背景绘画", "文本到图像生成", "ETTA", "角色生成"]
+            },
+            "2.1": {
+                "name": "图片 2.1",
+                "model_req_key": "high_aes_general_v21_L:general_v2.1_L",
+                "description": "稳定的结构和更强的影视质感，支持生成中、英文文字",
+                "features": ["新模型", "默认场景", "人脸交换", "背景绘画", "文本到图像生成", "ETTA", "角色生成"]
+            },
+            "2.0p": {
+                "name": "图片 2.0 Pro",
+                "model_req_key": "high_aes_general_v20_L:general_v2.0_L",
+                "description": "大幅提升了多样性和真实的照片质感，开启创新与设计的视觉梦境",
+                "features": ["默认场景", "文本到图像生成", "人脸交换", "背景绘画", "限时折扣", "字节编辑", "风格参考"]
+            },
+            "2.0": {
+                "name": "图片 2.0",
+                "model_req_key": "high_aes_general_v20:general_v2.0",
+                "description": "更精准的描述词响应和多样的风格组合，模型极具想象力！",
+                "features": ["默认场景", "文本到图像生成", "人脸交换", "背景绘画", "Canny边缘检测", "深度图", "姿态估计", "风格参考", "IP保持"]
+            }
+        },
+        "default_model": "3.0"
+    },
+    
+    "storage": {
+        "retention_days": 7
+    },
+    "video_models": {
+        "v3.0": {
+            "name": "视频 3.0",
+            "model_req_key": "dreamina_ic_generate_video_model_vgfm_3.0",
+            "benefit_type": "basic_video_operation_vgfm_v_three",
+            "feature_entrance": "to_image",
+            "feature_entrance_detail": "to_image-text_to_video",
+            "description": "新的视频模型 3.0",
+            "features": ["新模型"]
+        },
+        "s2.0p": {
+            "name": "视频 S2.0 Pro",
+            "model_req_key": "dreamina_ic_generate_video_model_vgfm1.0",
+            "description": "更合理的动效, 更生动自然的运镜",
+            "features": ["合理动效", "自然运镜"]
+        },
+        "s2.0": {
+            "name": "视频 S2.0",
+            "model_req_key": "dreamina_ic_generate_video_model_vgfm_lite",
+            "description": "更快的生成速度, 兼顾高品质效果",
+            "features": ["快速生成", "高品质"]
+        }
+
+    },
+    "video_ratios": {
+        "21:9": {"width": 1024, "height": 394},
+        "16:9": {"width": 1024, "height": 576},
+        "4:3": {"width": 1024, "height": 768},
+        "1:1": {"width": 1024, "height": 1024},
+        "3:4": {"width": 768, "height": 1024},
+        "9:16": {"width": 576, "height": 1024}
+    },
+    "default_video_model": "v3.0",
+    "default_video_ratio": "16:9",    
+    "ui": {
+        "category": "即梦AI",
+        "show_advanced_options": true,
+        "max_prompt_length": 1000
+    }
+} 
