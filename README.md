@@ -27,7 +27,7 @@
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/Lingyuzhou111/ComfyUI_Jimeng_Nodes.git
+git clone https://github.com/Lingyuzhou111/Comfyui_Free_Jimeng.git
 ```
 
 ## ⚙️ **配置步骤**
