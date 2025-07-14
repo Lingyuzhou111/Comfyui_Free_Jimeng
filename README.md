@@ -20,7 +20,7 @@
 
 ### 方法1: 手动安装（推荐）
 
-1. 将整个`ComfyUI_Jimeng_Nodes`文件夹复制到ComfyUI的`custom_nodes`目录
+1. 将整个`Comfyui_Free_Jimeng`文件夹复制到ComfyUI的`custom_nodes`目录
 2. 重启ComfyUI
 
 ### 方法2: Git克隆
@@ -43,7 +43,7 @@ git clone https://github.com/Lingyuzhou111/Comfyui_Free_Jimeng.git
 
 ### 2. 配置插件
 
-1. 在`ComfyUI_Jimeng_Nodes`目录中找到`config.json.example`文件
+1. 在`Comfyui_Free_Jimeng`目录中找到`config.json.example`文件
 2. 复制并重命名为`config.json`
 3. 编辑`config.json`，填入你的认证信息：
 
@@ -214,9 +214,7 @@ git clone https://github.com/Lingyuzhou111/Comfyui_Free_Jimeng.git
    - 检查sessionid是否过期（需要重新登录获取）
    
 4. **认证错误（ret=1015）**
-   - 这是即梦AI的反爬虫机制触发
    - **解决方案**：参考[`获取认证参数指南.md`](./获取认证参数指南.md)获取完整认证参数
-   - 使用完整的`web_id`和`full_cookie`配置
 
 5. **图片生成失败**
    - 检查提示词是否符合规范
