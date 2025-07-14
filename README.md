@@ -1,0 +1,2 @@
+# Comfyui_Free_Jimeng
+将即梦AI的强大图片生成功能集成到ComfyUI中的官方插件
