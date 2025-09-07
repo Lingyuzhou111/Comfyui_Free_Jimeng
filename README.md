@@ -11,7 +11,7 @@
 ## 🎯 **功能特点**
 
 - 🎨 **高质量文生图**: 基于即梦AI的先进图像生成技术
-- 🎭 **多模型支持**: 支持图片3.1、3.0、2.1、2.0 Pro、2.0等多种模型
+- 🎭 **多模型支持**: 支持图片4.0、3.1、3.0、2.1、2.0 Pro、2.0等多种模型
 - 📐 **多比例选择**: 支持1:1、2:3、4:3、9:16、16:9等多种图像比例
 - 🧩 **原生集成**: 完全集成ComfyUI工作流，支持保存和分享
 - ⚡ **智能处理**: 自动处理排队、重试和错误恢复
@@ -104,9 +104,11 @@ git clone https://github.com/Lingyuzhou111/Comfyui_Free_Jimeng.git
 
 ### 示例工作流
 
+#### 即梦4.0多图参考工作流
+![e1757c26654299489d610b9bfb5458d7](https://github.com/user-attachments/assets/2ef2d83f-df37-4aa7-8ccb-bb9eb829601a)
+
 #### 基础文生图工作流
 <img width="1245" height="1141" alt="基础文生图" src="https://github.com/user-attachments/assets/ae0d1641-b445-4844-a889-11d76b4f5ff9" />
-
 
 #### 文生图+高清化工作流
 <img width="2170" height="1035" alt="文生图+超清放大" src="https://github.com/user-attachments/assets/4d661c95-eb78-4c35-80b7-a1f7255f3517" />
