@@ -1,6 +1,6 @@
 {
     "description": "即梦AI ComfyUI插件配置文件",
-    "version": "1.0.0",
+    "version": "1.5.0",
     
     "accounts": [
         {
@@ -115,3 +115,4 @@
         "max_prompt_length": 1000
     }
 } 
+
