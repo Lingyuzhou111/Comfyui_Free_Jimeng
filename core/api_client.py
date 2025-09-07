@@ -123,12 +123,12 @@ class ApiClient:
             model_info = models.get(model, {})
             model_req_key = model_info.get("model_req_key", f"high_aes_general_v20:general_{model}")
             
-            # 准备babi_param
+            # 准备babi_param - 简化版本，与curl文件保持一致
             babi_param = {
                 "scenario": "image_video_generation",
                 "feature_key": "aigc_to_image",
                 "feature_entrance": "to_image",
-                "feature_entrance_detail": f"to_image-{model_req_key}"
+                "feature_entrance_detail": "to_image"
             }
             
             # 生成唯一的submit_id
@@ -165,14 +165,22 @@ class ApiClient:
                     "min_version": "3.0.2",
                     "min_features": [],
                     "is_from_tsn": True,
-                    "version": "3.0.9",
+                    "version": "3.2.8",  # 更新版本号
                     "main_component_id": component_id,
                     "component_list": [{
                         "type": "image_base_component",
                         "id": component_id,
                         "min_version": "3.0.2",
-                        "generate_type": "generate",
                         "aigc_mode": "workbench",
+                        "metadata": {  # 添加metadata字段
+                            "type": "",
+                            "id": str(uuid.uuid4()),
+                            "created_platform": 3,
+                            "created_platform_version": "",
+                            "created_time_in_ms": str(int(time.time() * 1000)),
+                            "created_did": ""
+                        },
+                        "generate_type": "generate",
                         "abilities": {
                             "type": "",
                             "id": str(uuid.uuid4()),
@@ -192,7 +200,8 @@ class ApiClient:
                                         "type": "",
                                         "id": str(uuid.uuid4()),
                                         "height": height,
-                                        "width": width
+                                        "width": width,
+                                        "resolution_type": "1k"  # 添加分辨率类型
                                     }
                                 },
                                 "history_option": {
@@ -211,7 +220,10 @@ class ApiClient:
                 "aid": self.aid,
                 "device_platform": "web",
                 "region": "CN",
-                "web_id": self.token_manager.get_web_id()
+                "web_id": self.token_manager.get_web_id(),
+                "da_version": "3.2.8",  # 添加da_version
+                "web_version": "6.6.0",  # 添加web_version
+                "aigc_features": "app_lip_sync"  # 添加aigc_features
             }
             
             # 发送请求
@@ -275,7 +287,7 @@ class ApiClient:
             logger.error(f"[Jimeng] Error generating image: {e}")
             return None
 
-    def generate_i2i(self, image: torch.Tensor, prompt: str, model: str, ratio: str, seed: int, num_images: int = 4) -> Tuple[torch.Tensor, str, str]:
+    def generate_i2i(self, image: torch.Tensor = None, images: Optional[List[torch.Tensor]] = None, prompt: str = "", model: str = "3.0", ratio: str = "1:1", seed: int = -1, num_images: int = 4) -> Tuple[torch.Tensor, str, str]:
         """处理图生图请求"""
         try:
             if not self.token_manager:
@@ -291,14 +303,21 @@ class ApiClient:
             if not self.token_manager.find_account_with_sufficient_credit(2):
                  return self._create_error_result("所有账号积分均不足2点，无法生成。")
 
-            # 保存输入图像
-            input_image_path = self._save_input_image(image)
-            if not input_image_path:
-                return self._create_error_result("保存输入图像失败。")
+            # 保存输入图像（支持多图）
+            input_tensors = images if images and len(images) > 0 else ([image] if image is not None else [])
+            if not input_tensors:
+                return self._create_error_result("未提供参考图，请至少选择一张参考图。")
 
-            logger.debug(f"[Jimeng] 开始图生图: {prompt[:50]}...")
+            input_image_paths = []
+            for t in input_tensors:
+                p = self._save_input_image(t)
+                if not p:
+                    return self._create_error_result("保存输入图像失败。")
+                input_image_paths.append(p)
+
+            logger.debug(f"[Jimeng] 开始图生图: {prompt[:50]}...，参考图数量: {len(input_image_paths)}")
             result = self.upload_image_and_generate_with_reference(
-                image_path=input_image_path,
+                image_paths=input_image_paths,
                 prompt=prompt,
                 model=model,
                 ratio=ratio
@@ -334,7 +353,8 @@ class ApiClient:
                         
                         # 清理临时文件
                         try:
-                            os.remove(input_image_path)
+                            for _p in input_image_paths:
+                                os.remove(_p)
                         except Exception as e:
                             logger.warning(f"[Jimeng] 清理临时文件失败: {e}")
                             
@@ -363,7 +383,8 @@ class ApiClient:
 
             # 清理临时文件
             try:
-                os.remove(input_image_path)
+                for _p in input_image_paths:
+                    os.remove(_p)
             except Exception as e:
                 logger.warning(f"[Jimeng] 清理临时文件失败: {e}")
 
@@ -714,7 +735,7 @@ class ApiClient:
             logger.error(f"[Jimeng] Error getting image description: {e}")
             return ""
 
-    def upload_image_and_generate_with_reference(self, image_path, prompt, model="3.0", ratio="1:1"):
+    def upload_image_and_generate_with_reference(self, image_path=None, image_paths=None, prompt="", model="3.0", ratio="1:1"):
         """上传参考图并生成新图片
         Args:
             image_path: 参考图片路径
@@ -734,30 +755,39 @@ class ApiClient:
                 logger.error("[Jimeng] Failed to get upload token")
                 return None
                 
-            # 上传图片
-            image_uri = self._upload_image(image_path, upload_token)
-            if not image_uri:
-                logger.error("[Jimeng] Failed to upload image")
+            # 整理待上传路径
+            paths = image_paths if image_paths else ([image_path] if image_path else [])
+            if not paths:
+                logger.error("[Jimeng] 未提供参考图路径")
                 return None
-                
-            # 图片URI验证
-            self._verify_uploaded_image(image_uri)
-            
-            logger.debug(f"[Jimeng] 图片上传成功, URI: {image_uri}")
+
+            logger.debug(f"[Jimeng] 待上传参考图路径: {paths}")
+            # 上传图片（多张）
+            image_uris = []
+            for p in paths:
+                uri = self._upload_image(p, upload_token)
+                if not uri:
+                    logger.error("[Jimeng] Failed to upload image")
+                    return None
+                image_uris.append(uri)
+                # 可选：逐张验证
+                self._verify_uploaded_image(uri)
+
+            logger.debug(f"[Jimeng] 图片上传成功, 数量: {len(image_uris)}")
             
             # 获取模型配置
             models = self.config.get("params", {}).get("models", {})
             model_info = models.get(model, {})
             
-            # 默认使用3.0模型
-            model_req_key = "high_aes_general_v30l:general_v3.0_18b"
-            if model == "3.0":
-                model_req_key = model_info.get("model_req_key", "high_aes_general_v30l:general_v3.0_18b")
+            # 默认使用4.0模型
+            model_req_key = "high_aes_general_v40"
+            if model == "4.0":
+                model_req_key = model_info.get("model_req_key", "high_aes_general_v40")
             
             # 准备请求参数
             submit_id = str(uuid.uuid4())
-            draft_id = "afbe82ac-86ab-d586-914b-2a7f471ed374"  # 固定draft_id与示例一致
-            component_id = "4829b274-bbc6-377e-9176-bada00408683"  # 固定component_id与示例一致
+            draft_id = "adffa4e0-fced-fc0c-b972-5c5a0f51cb2f"  # 固定draft_id与示例一致
+            component_id = "c440938a-d652-fc79-1a48-c516d848094c"  # 固定component_id与示例一致
             
             # 准备babi_param
             babi_param = {
@@ -808,32 +838,32 @@ class ApiClient:
                             },
                             "ability_list": [{
                                 "type": "",
-                                "id": "326d5795-8ce0-14c6-488c-a62dac3f15a0",
+                                "id": str(uuid.uuid4()),
                                 "name": "byte_edit",
-                                "image_uri_list": [image_uri],
+                                "image_uri_list": [uri],
                                 "image_list": [{
                                     "type": "image",
-                                    "id": "8df4165f-b6db-0fb8-9162-fc7a5992eba1",
+                                    "id": str(uuid.uuid4()),
                                     "source_from": "upload",
                                     "platform_type": 1,
                                     "name": "",
-                                    "image_uri": image_uri,
+                                    "image_uri": uri,
                                     "width": 0,
                                     "height": 0,
                                     "format": "",
-                                    "uri": image_uri
+                                    "uri": uri
                                 }],
                                 "strength": 0.5
-                            }],
+                            } for uri in image_uris],
                             "history_option": {
                                 "type": "",
                                 "id": "6ec2e2cd-99af-0033-99a1-a325a27aad88"
                             },
                             "prompt_placeholder_info_list": [{
                                 "type": "",
-                                "id": "f0d9da79-7341-2953-2d68-c0c6bf6b2853",
-                                "ability_index": 0
-                            }],
+                                "id": str(uuid.uuid4()),
+                                "ability_index": idx
+                            } for idx in range(len(image_uris))],
                             "postedit_param": {
                                 "type": "",
                                 "id": "02518f0d-5d8f-c7d3-a8f9-d36aa3600d24",
@@ -1044,8 +1074,8 @@ class ApiClient:
                     logger.error("[Jimeng] 未找到资源数据")
                     return None
                 
-                # 解析draft_content以获取原始上传图片的URI
-                upload_image_uri = None
+                # 解析draft_content以获取所有原始上传图片的URI集合
+                upload_image_uris = set()
                 try:
                     draft_content_dict = json.loads(draft_content)
                     component_list = draft_content_dict.get("component_list", [])
@@ -1055,10 +1085,8 @@ class ApiClient:
                         ability_list = blend_data.get("ability_list", [])
                         for ability in ability_list:
                             if ability.get("name") == "byte_edit":
-                                image_uri_list = ability.get("image_uri_list", [])
-                                if image_uri_list:
-                                    upload_image_uri = image_uri_list[0]
-                                    break
+                                for _uri in ability.get("image_uri_list", []):
+                                    upload_image_uris.add(_uri)
                 except Exception as e:
                     logger.error(f"[Jimeng] 解析draft_content失败: {e}")
                     
@@ -1071,7 +1099,7 @@ class ApiClient:
                         image_url = image_info.get("image_url")
                         
                         # 如果这个资源不是上传的原图，添加到结果中
-                        if resource_uri != upload_image_uri and image_url:
+                        if (not upload_image_uris or resource_uri not in upload_image_uris) and image_url:
                             image_urls.append(image_url)
                 
                 # 如果从resources中找不到生成的图片，尝试从item_list中获取
@@ -1260,7 +1288,8 @@ class ApiClient:
             os.makedirs(temp_dir, exist_ok=True)
             
             # 生成临时文件路径
-            temp_path = os.path.join(temp_dir, f"temp_input_{int(time.time())}.png")
+            unique_name = f"temp_input_{time.time_ns()}_{uuid.uuid4().hex}.png"
+            temp_path = os.path.join(temp_dir, unique_name)
             
             # 将张量转换为PIL图像并保存
             if len(image_tensor.shape) == 4:  # batch, height, width, channels
