@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 def _load_config_for_class() -> Dict[str, Any]:
     """
     辅助函数：用于在节点类实例化前加载配置，
-    以便为UI输入选项提供动态数据（如模型列表）。
+    以便为UI输入选项提供动态数据（如模型列表、账号列表）。
     """
     try:
         plugin_dir = os.path.dirname(os.path.abspath(__file__))
@@ -32,12 +32,12 @@ def _load_config_for_class() -> Dict[str, Any]:
             return json.load(f)
     except Exception as e:
         logger.warning(f"[JimengNode] 无法为UI加载配置文件: {e}。将使用默认值。")
-        return {"params": {"models": {}, "ratios": {}, "default_model": "", "default_ratio": ""}}
+        return {"params": {"models": {}, "ratios": {}, "default_model": "", "default_ratio": ""}, "accounts": []}
 
 class JimengImageNode:
     """
     即梦AI文/图生图合并节点
-    通过 reference_image 是否为空自动判断是文生图还是图生图
+    通过是否提供 ref_image_1…ref_image_6 中任意一张参考图自动判断是文生图还是图生图
     """
     def __init__(self):
         self.plugin_dir = os.path.dirname(os.path.abspath(__file__))
@@ -98,22 +98,39 @@ class JimengImageNode:
         params = config.get("params", {})
         models = params.get("models", {})
         ratios = params.get("ratios", {})
+        accounts = config.get("accounts", [])
+        
         defaults = {"model": params.get("default_model", "3.0"), "ratio": params.get("default_ratio", "1:1")}
         model_options = list(models.keys())
         ratio_options = list(ratios.keys())
         if not model_options: model_options = ["-"]
         if not ratio_options: ratio_options = ["-"]
+        
+        # 生成账号选择选项
+        account_options = []
+        if accounts:
+            for i, account in enumerate(accounts):
+                description = account.get("description", f"账号{i+1}")
+                account_options.append(description)
+        else:
+            account_options = ["无可用账号"]
 
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True, "default": "一只可爱的小猫咪"}),
+                "account": (account_options, {"default": account_options[0] if account_options else "无可用账号"}),
                 "model": (model_options, {"default": defaults["model"]}),
                 "ratio": (ratio_options, {"default": defaults["ratio"]}),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 0xffffffffffffffff}),
             },
             "optional": {
                 "num_images": ("INT", {"default": 4, "min": 1, "max": 4}),
-                "reference_image": ("IMAGE", {"tooltip": "可选的参考图像，留空为文生图"})
+                "ref_image_1": ("IMAGE", {"tooltip": "参考图1，留空则不使用"}),
+                "ref_image_2": ("IMAGE", {"tooltip": "参考图2，留空则不使用"}),
+                "ref_image_3": ("IMAGE", {"tooltip": "参考图3，留空则不使用"}),
+                "ref_image_4": ("IMAGE", {"tooltip": "参考图4，留空则不使用"}),
+                "ref_image_5": ("IMAGE", {"tooltip": "参考图5，留空则不使用"}),
+                "ref_image_6": ("IMAGE", {"tooltip": "参考图6，留空则不使用"})
             }
         }
     
@@ -267,9 +284,50 @@ class JimengImageNode:
             logger.error(f"[JimengNode] 保存输入图像失败: {e}")
             return None
 
-    def generate_images(self, prompt: str, model: str, ratio: str, seed: int, num_images: int = 4, reference_image: torch.Tensor = None) -> Tuple[torch.Tensor, str, str, str]:
+    def _get_account_index_by_description(self, account_description: str) -> Optional[int]:
+        """
+        根据账号描述找到对应的账号索引
+        
+        Args:
+            account_description: 账号描述（如"账号1"、"账号2"等）
+            
+        Returns:
+            int: 账号索引，如果未找到则返回None
+        """
+        try:
+            accounts = self.config.get("accounts", [])
+            for i, account in enumerate(accounts):
+                description = account.get("description", f"账号{i+1}")
+                if description == account_description:
+                    return i
+            
+            # 如果没有找到精确匹配，尝试处理"无可用账号"的情况
+            if account_description == "无可用账号":
+                return None
+                
+            logger.warning(f"[JimengNode] 未找到账号描述: {account_description}")
+            return None
+        except Exception as e:
+            logger.error(f"[JimengNode] 查找账号索引时出错: {e}")
+            return None
+
+    def generate_images(self, prompt: str, model: str, ratio: str, account: str, seed: int, num_images: int = 4,
+                        ref_image_1: torch.Tensor = None, ref_image_2: torch.Tensor = None, ref_image_3: torch.Tensor = None,
+                        ref_image_4: torch.Tensor = None, ref_image_5: torch.Tensor = None, ref_image_6: torch.Tensor = None) -> Tuple[torch.Tensor, str, str, str]:
         """
         主执行函数：根据reference_image是否为空，自动判断文生图或图生图。
+        
+        Args:
+            prompt: 文本提示词
+            model: 使用的模型版本
+            ratio: 图片比例
+            account: 选择的账号描述
+            seed: 随机种子
+            num_images: 生成图片数量
+            reference_image: 可选的参考图像，如果提供则进行图生图
+            
+        Returns:
+            Tuple[torch.Tensor, str, str, str]: (图片张量, 生成信息, 图片URLs, 历史ID)
         """
         try:
             # --- 1. 通用检查 ---
@@ -280,22 +338,42 @@ class JimengImageNode:
             if not prompt or not prompt.strip():
                 return self._create_error_result("提示词不能为空。")
 
-            # --- 2. 判断是文生图还是图生图 ---
-            if reference_image is not None:
+            # --- 2. 账号切换逻辑 ---
+            account_index = self._get_account_index_by_description(account)
+            if account_index is None:
+                return self._create_error_result(f"未找到指定账号: {account}")
+            
+            # 切换到指定账号
+            success_account = self.token_manager.switch_to_account(account_index)
+            if not success_account:
+                return self._create_error_result(f"切换到账号 {account} 失败")
+            
+            logger.info(f"[JimengNode] 已切换到账号: {account} (索引: {account_index})")
+            
+            # 获取账号积分信息以便后续显示
+            current_credit = self.token_manager.get_credit()
+            credit_display = f"当前使用账号: {account}"
+            if current_credit:
+                credit_display += f" (剩余积分: {current_credit.get('total_credit', '未知')})"
+
+            # --- 3. 判断是文生图还是图生图 ---
+            ref_images = [ri for ri in [ref_image_1, ref_image_2, ref_image_3, ref_image_4, ref_image_5, ref_image_6] if ri is not None]
+            if len(ref_images) > 0:
                 # --- 图生图逻辑 (Image-to-Image) ---
                 logger.info("=" * 50)
-                logger.info("[JimengNode] 检测到参考图，进入图生图模式")
+                logger.info(f"[JimengNode] 检测到 {len(ref_images)} 张参考图，进入图生图模式")
                 logger.info(f"[JimengNode] 提示词: {prompt}")
                 logger.info(f"[JimengNode] 模型: {model}, 比例: {ratio}, 数量: {num_images}")
                 logger.info("-" * 50)
 
-                # 检查积分
-                if not self.token_manager.find_account_with_sufficient_credit(2):
-                    return self._create_error_result("所有账号积分均不足2点，无法进行图生图。")
+                # 检查当前账号积分
+                current_credit_info = self.token_manager.get_credit()
+                if not current_credit_info or current_credit_info.get('total_credit', 0) < 2:
+                    return self._create_error_result(f"账号 {account} 积分不足2点，无法进行图生图。当前积分: {current_credit_info.get('total_credit', 0) if current_credit_info else '未知'}")
                 
-                # 直接调用图生图API，它已经包含了所有处理逻辑
+                # 直接调用图生图API（已扩展支持多图）
                 result = self.api_client.generate_i2i(
-                    image=reference_image,
+                    images=ref_images,
                     prompt=prompt,
                     model=model,
                     ratio=ratio,
@@ -340,9 +418,10 @@ class JimengImageNode:
                 logger.info(f"[JimengNode] 模型: {model}, 比例: {ratio}, 数量: {num_images}")
                 logger.info("-" * 50)
 
-                # 检查积分
-                if not self.token_manager.find_account_with_sufficient_credit(1):
-                    return self._create_error_result("所有账号积分均不足1点，无法进行文生图。")
+                # 检查当前账号积分
+                current_credit_info = self.token_manager.get_credit()
+                if not current_credit_info or current_credit_info.get('total_credit', 0) < 1:
+                    return self._create_error_result(f"账号 {account} 积分不足1点，无法进行文生图。当前积分: {current_credit_info.get('total_credit', 0) if current_credit_info else '未知'}")
                 
                 # 调用文生图API
                 result = self.api_client.generate_t2i(prompt=prompt, model=model, ratio=ratio, seed=seed)
@@ -375,7 +454,7 @@ class JimengImageNode:
                 # 准备最终输出
                 credit_info = self.token_manager.get_credit()
                 credit_text = f"\n当前账号剩余积分: {credit_info.get('total_credit', '未知')}" if credit_info else ""
-                generation_info = self._generate_info_text(prompt, model, ratio, len(images)) + credit_text
+                generation_info = self._generate_info_text(prompt, model, ratio, len(images), account) + credit_text
                 image_urls_str = "\n".join(urls_to_download)
 
                 logger.info(f"[JimengNode] ✅ 文生图任务完成，成功生成 {len(images)} 张图片。")
@@ -400,10 +479,12 @@ class JimengImageNode:
         error_image = torch.ones(1, 256, 256, 3) * torch.tensor([1.0, 0.0, 0.0])
         return (error_image, f"错误: {error_msg}", "", "")
 
-    def _generate_info_text(self, prompt: str, model: str, ratio: str, num_images: int) -> str:
+    def _generate_info_text(self, prompt: str, model: str, ratio: str, num_images: int, account: str = None) -> str:
         models_config = self.config.get("params", {}).get("models", {})
         model_display_name = models_config.get(model, {}).get("name", model)
         info_lines = [f"提示词: {prompt}", f"模型: {model_display_name}", f"比例: {ratio}", f"数量: {num_images}"]
+        if account:
+            info_lines.append(f"使用账号: {account}")
         return "\n".join(info_lines)
 
     @classmethod
@@ -415,5 +496,5 @@ NODE_CLASS_MAPPINGS = {
     "Jimeng_Image": JimengImageNode
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "Jimeng_Image": "即梦AI生图"
+    "Jimeng_Image": "即梦AI图片生成"
 } 
