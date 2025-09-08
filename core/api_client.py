@@ -33,8 +33,7 @@ class ApiClient:
     def _get_headers(self, uri="/"):
         """获取请求头"""
         token_info = self.token_manager.get_token(uri)
-        current_time = str(int(time.time()))
-        
+        # 统一使用与成功请求一致的最小必要头，并在生成接口时移除 msToken/a-bogus（改用URL参数）
         headers = {
             'accept': 'application/json, text/plain, */*',
             'accept-language': 'zh-CN,zh;q=0.9',
@@ -42,26 +41,31 @@ class ApiClient:
             'appid': self.aid,
             'appvr': self.app_version,
             'content-type': 'application/json',
-            'cookie': token_info["cookie"],
-            'device-time': token_info["device_time"],
+            'cookie': token_info.get("cookie", ""),
+            'device-time': token_info.get("device_time", ""),
             'lan': 'zh-Hans',
             'loc': 'cn',
             'origin': 'https://jimeng.jianying.com',
             'pf': '7',
             'priority': 'u=1, i',
-            'referer': 'https://jimeng.jianying.com/ai-tool/image/generate',
+            # 参照微信机器人版与线上成功请求
+            'referer': 'https://jimeng.jianying.com/ai-tool/generate',
             'sec-ch-ua': '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
             'sec-ch-ua-mobile': '?0',
             'sec-ch-ua-platform': '"Windows"',
             'sec-fetch-dest': 'empty',
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-origin',
-            'sign': token_info["sign"],
+            'sign': token_info.get("sign", ""),
             'sign-ver': '1',
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
-            'msToken': token_info["msToken"],
-            'a-bogus': token_info["a_bogus"]
         }
+        # 仅非生成接口保留 header 中的 msToken/a-bogus
+        if uri != '/mweb/v1/aigc_draft/generate':
+            if token_info.get("msToken"):
+                headers['msToken'] = token_info["msToken"]
+            if token_info.get("a_bogus"):
+                headers['a-bogus'] = token_info["a_bogus"]
         return headers
 
     def _send_request(self, method, url, **kwargs):
@@ -90,7 +94,6 @@ class ApiClient:
             if 'json' in kwargs:
                 logger.debug(f"[Jimeng] Request data: {kwargs['json']}")
             logger.debug(f"[Jimeng] Response: {response.text}")
-            
             return response.json()
         except Exception as e:
             logger.error(f"[Jimeng] Request failed: {e}")
@@ -215,30 +218,35 @@ class ApiClient:
                 "http_common_info": {"aid": self.aid}
             }
             
+            # 将 msToken 与 a_bogus 放入 URL 参数（对齐线上成功请求）
+            token_info = self.token_manager.get_token('/mweb/v1/aigc_draft/generate')
             params = {
                 "babi_param": json.dumps(babi_param),
                 "aid": self.aid,
                 "device_platform": "web",
                 "region": "CN",
                 "web_id": self.token_manager.get_web_id(),
-                "da_version": "3.2.8",  # 添加da_version
-                "web_version": "6.6.0",  # 添加web_version
-                "aigc_features": "app_lip_sync"  # 添加aigc_features
             }
-            
+            # 仅当可用时附加
+            if token_info.get("msToken"):
+                params["msToken"] = token_info["msToken"]
+            if token_info.get("a_bogus"):
+                params["a_bogus"] = token_info["a_bogus"]
+
             # 发送请求
             logger.debug(f"[Jimeng] Generating image with prompt: {prompt}, model: {model}, ratio: {ratio}")
             response = self._send_request("POST", url, params=params, json=data)
-            
-            if not response or response.get('ret') != '0':
+
+            # 透传非零 ret 的错误详情，便于节点层展示真实原因
+            if not response or str(response.get('ret')) != '0':
                 logger.error(f"[Jimeng] Failed to generate image: {response}")
-                return None
+                return {"error": True, "response": response}
                 
             # 获取history_id
             history_id = response.get('data', {}).get('aigc_data', {}).get('history_record_id')
             if not history_id:
                 logger.error("[Jimeng] No history_id in response")
-                return None
+                return {"error": True, "response": response}
                 
             # 从配置文件读取超时参数
             timeout_config = self.config.get("timeout", {})
@@ -896,9 +904,9 @@ class ApiClient:
             # 发送生成请求
             response = self._send_request("POST", url, params=params, json=data)
             
-            if not response or response.get("ret") != "0":
+            if not response or str(response.get("ret")) != "0":
                 logger.error(f"[Jimeng] Failed to generate image with reference: {response}")
-                return None
+                return {"error": True, "response": response}
                 
             # 获取aigc_data信息
             aigc_data = response.get("data", {}).get("aigc_data", {})
