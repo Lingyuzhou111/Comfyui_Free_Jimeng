@@ -97,12 +97,18 @@ class JimengImageNode:
         config = _load_config_for_class()
         params = config.get("params", {})
         models = params.get("models", {})
-        ratios = params.get("ratios", {})
+        # 新增：按默认模型选择 1k/2k 比例列表
+        ratios_1k = params.get("1k_ratios", {})
+        ratios_2k = params.get("2k_ratios", {})
         accounts = config.get("accounts", [])
         
         defaults = {"model": params.get("default_model", "3.0"), "ratio": params.get("default_ratio", "1:1")}
         model_options = list(models.keys())
-        ratio_options = list(ratios.keys())
+        default_model = (defaults["model"] or "").strip()
+        if default_model == "4.0":
+            ratio_options = list(ratios_2k.keys()) if isinstance(ratios_2k, dict) else []
+        else:
+            ratio_options = list(ratios_1k.keys()) if isinstance(ratios_1k, dict) else []
         if not model_options: model_options = ["-"]
         if not ratio_options: ratio_options = ["-"]
         
@@ -365,6 +371,18 @@ class JimengImageNode:
                 logger.info(f"[JimengNode] 提示词: {prompt}")
                 logger.info(f"[JimengNode] 模型: {model}, 比例: {ratio}, 数量: {num_images}")
                 logger.info("-" * 50)
+                # 根据模型切换分辨率映射（图生图）：4.0 -> 2k_ratios，其它 -> 1k_ratios
+                params_cfg = self.config.get("params", {})
+                ratios_1k = params_cfg.get("1k_ratios", {})
+                ratios_2k = params_cfg.get("2k_ratios", {})
+                use_2k = (str(model).strip() == "4.0")
+                selected = ratios_2k if use_2k else ratios_1k
+                if isinstance(selected, dict) and selected:
+                    params_cfg["ratios"] = dict(selected)
+                    self.config["params"] = params_cfg
+                    logger.info(f"[JimengNode] 已切换分辨率组为: {'2k_ratios' if use_2k else '1k_ratios'}")
+                else:
+                    logger.warning("[JimengNode] 未找到匹配模型的分辨率映射，将使用现有ratios。")
 
                 # 检查当前账号积分
                 current_credit_info = self.token_manager.get_credit()
@@ -417,6 +435,18 @@ class JimengImageNode:
                 logger.info(f"[JimengNode] 提示词: {prompt[:50]}...")
                 logger.info(f"[JimengNode] 模型: {model}, 比例: {ratio}, 数量: {num_images}")
                 logger.info("-" * 50)
+                # 根据模型切换分辨率映射（文生图）：4.0 -> 2k_ratios，其它 -> 1k_ratios
+                params_cfg = self.config.get("params", {})
+                ratios_1k = params_cfg.get("1k_ratios", {})
+                ratios_2k = params_cfg.get("2k_ratios", {})
+                use_2k = (str(model).strip() == "4.0")
+                selected = ratios_2k if use_2k else ratios_1k
+                if isinstance(selected, dict) and selected:
+                    params_cfg["ratios"] = dict(selected)
+                    self.config["params"] = params_cfg
+                    logger.info(f"[JimengNode] 已切换分辨率组为: {'2k_ratios' if use_2k else '1k_ratios'}")
+                else:
+                    logger.warning("[JimengNode] 未找到匹配模型的分辨率映射，将使用现有ratios。")
 
                 # 检查当前账号积分
                 current_credit_info = self.token_manager.get_credit()
