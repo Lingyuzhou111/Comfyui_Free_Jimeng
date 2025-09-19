@@ -19,7 +19,6 @@
         "check_interval": 10,
         "max_retries": 3
     },
-    
     "params": {
         "1k_ratios": {
             "1:1": {"width": 1328, "height": 1328},
@@ -38,6 +37,15 @@
             "3:2": {"width": 2496, "height": 1664},
             "16:9": {"width": 2560, "height": 1440},
             "9:16": {"width": 1440, "height": 2560}
+        },
+        "4k_ratios": {
+            "1:1": {"width": 4096, "height": 4096},
+            "2:3": {"width": 3328, "height": 4992},
+            "3:4": {"width": 3520, "height": 4693},
+            "4:3": {"width": 4693, "height": 3520},
+            "3:2": {"width": 4992, "height": 3328},
+            "16:9": {"width": 5404, "height": 3040},
+            "9:16": {"width": 3040, "height": 5404}
         },
         "default_ratio": "1:1",
         "models": {
@@ -124,6 +132,7 @@
         "max_prompt_length": 1000
     }
 } 
+
 
 
 
