@@ -97,20 +97,28 @@ class JimengImageNode:
         config = _load_config_for_class()
         params = config.get("params", {})
         models = params.get("models", {})
-        # 新增：按默认模型选择 1k/2k 比例列表
+        # 分辨率组：1k/2k/4k
         ratios_1k = params.get("1k_ratios", {})
         ratios_2k = params.get("2k_ratios", {})
+        ratios_4k = params.get("4k_ratios", {})
         accounts = config.get("accounts", [])
         
-        defaults = {"model": params.get("default_model", "3.0"), "ratio": params.get("default_ratio", "1:1")}
-        model_options = list(models.keys())
-        default_model = (defaults["model"] or "").strip()
-        if default_model == "4.0":
-            ratio_options = list(ratios_2k.keys()) if isinstance(ratios_2k, dict) else []
-        else:
-            ratio_options = list(ratios_1k.keys()) if isinstance(ratios_1k, dict) else []
-        if not model_options: model_options = ["-"]
-        if not ratio_options: ratio_options = ["-"]
+        # 选项与默认值
+        defaults = {
+            "model": params.get("default_model", "3.0"),
+            "resolution": "2k",
+            "ratio": params.get("default_ratio", "1:1"),
+        }
+        model_options = list(models.keys()) or ["-"]
+        # 比例下拉：使用所有分辨率中可用比例的并集，避免依赖模型名
+        ratio_keys = set()
+        if isinstance(ratios_1k, dict): ratio_keys.update(ratios_1k.keys())
+        if isinstance(ratios_2k, dict): ratio_keys.update(ratios_2k.keys())
+        if isinstance(ratios_4k, dict): ratio_keys.update(ratios_4k.keys())
+        ratio_options = list(ratio_keys) or ["-"]
+        ratio_options.sort()
+        
+        resolution_options = ["1k", "2k", "4k"]
         
         # 生成账号选择选项
         account_options = []
@@ -126,6 +134,7 @@ class JimengImageNode:
                 "prompt": ("STRING", {"multiline": True, "default": "一只可爱的小猫咪"}),
                 "account": (account_options, {"default": account_options[0] if account_options else "无可用账号"}),
                 "model": (model_options, {"default": defaults["model"]}),
+                "resolution": (resolution_options, {"default": defaults["resolution"]}),
                 "ratio": (ratio_options, {"default": defaults["ratio"]}),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 0xffffffffffffffff}),
             },
@@ -317,7 +326,7 @@ class JimengImageNode:
             logger.error(f"[JimengNode] 查找账号索引时出错: {e}")
             return None
 
-    def generate_images(self, prompt: str, model: str, ratio: str, account: str, seed: int, num_images: int = 4,
+    def generate_images(self, prompt: str, model: str, resolution: str, ratio: str, account: str, seed: int, num_images: int = 4,
                         ref_image_1: torch.Tensor = None, ref_image_2: torch.Tensor = None, ref_image_3: torch.Tensor = None,
                         ref_image_4: torch.Tensor = None, ref_image_5: torch.Tensor = None, ref_image_6: torch.Tensor = None) -> Tuple[torch.Tensor, str, str, str]:
         """
@@ -326,6 +335,7 @@ class JimengImageNode:
         Args:
             prompt: 文本提示词
             model: 使用的模型版本
+            resolution: 分辨率层级（1k/2k/4k）
             ratio: 图片比例
             account: 选择的账号描述
             seed: 随机种子
@@ -369,18 +379,21 @@ class JimengImageNode:
                 logger.info("=" * 50)
                 logger.info(f"[JimengNode] 检测到 {len(ref_images)} 张参考图，进入图生图模式")
                 logger.info(f"[JimengNode] 提示词: {prompt}")
-                logger.info(f"[JimengNode] 模型: {model}, 比例: {ratio}, 数量: {num_images}")
+                logger.info(f"[JimengNode] 模型: {model}, 分辨率: {resolution}, 比例: {ratio}, 数量: {num_images}")
                 logger.info("-" * 50)
-                # 根据模型切换分辨率映射（图生图）：4.0 -> 2k_ratios，其它 -> 1k_ratios
+                # 按用户选择的分辨率切换分辨率映射（图生图）
                 params_cfg = self.config.get("params", {})
                 ratios_1k = params_cfg.get("1k_ratios", {})
                 ratios_2k = params_cfg.get("2k_ratios", {})
-                use_2k = (str(model).strip() == "4.0")
-                selected = ratios_2k if use_2k else ratios_1k
+                ratios_4k = params_cfg.get("4k_ratios", {})
+                key_map = {"1k": ratios_1k, "2k": ratios_2k, "4k": ratios_4k}
+                selected = key_map.get(str(resolution).strip(), ratios_2k)
                 if isinstance(selected, dict) and selected:
                     params_cfg["ratios"] = dict(selected)
                     self.config["params"] = params_cfg
-                    logger.info(f"[JimengNode] 已切换分辨率组为: {'2k_ratios' if use_2k else '1k_ratios'}")
+                    # 记录切换到的分辨率组
+                    selected_group = "1k_ratios" if selected is ratios_1k else ("2k_ratios" if selected is ratios_2k else "4k_ratios")
+                    logger.info(f"[JimengNode] 已切换分辨率组为: {selected_group}")
                 else:
                     logger.warning("[JimengNode] 未找到匹配模型的分辨率映射，将使用现有ratios。")
 
@@ -433,18 +446,21 @@ class JimengImageNode:
                 logger.info("=" * 50)
                 logger.info("[JimengNode] 未检测到参考图，进入文生图模式")
                 logger.info(f"[JimengNode] 提示词: {prompt[:50]}...")
-                logger.info(f"[JimengNode] 模型: {model}, 比例: {ratio}, 数量: {num_images}")
+                logger.info(f"[JimengNode] 模型: {model}, 分辨率: {resolution}, 比例: {ratio}, 数量: {num_images}")
                 logger.info("-" * 50)
-                # 根据模型切换分辨率映射（文生图）：4.0 -> 2k_ratios，其它 -> 1k_ratios
+                # 按用户选择的分辨率切换分辨率映射（文生图）
                 params_cfg = self.config.get("params", {})
                 ratios_1k = params_cfg.get("1k_ratios", {})
                 ratios_2k = params_cfg.get("2k_ratios", {})
-                use_2k = (str(model).strip() == "4.0")
-                selected = ratios_2k if use_2k else ratios_1k
+                ratios_4k = params_cfg.get("4k_ratios", {})
+                key_map = {"1k": ratios_1k, "2k": ratios_2k, "4k": ratios_4k}
+                selected = key_map.get(str(resolution).strip(), ratios_2k)
                 if isinstance(selected, dict) and selected:
                     params_cfg["ratios"] = dict(selected)
                     self.config["params"] = params_cfg
-                    logger.info(f"[JimengNode] 已切换分辨率组为: {'2k_ratios' if use_2k else '1k_ratios'}")
+                    # 记录切换到的分辨率组
+                    selected_group = "1k_ratios" if selected is ratios_1k else ("2k_ratios" if selected is ratios_2k else "4k_ratios")
+                    logger.info(f"[JimengNode] 已切换分辨率组为: {selected_group}")
                 else:
                     logger.warning("[JimengNode] 未找到匹配模型的分辨率映射，将使用现有ratios。")
 
