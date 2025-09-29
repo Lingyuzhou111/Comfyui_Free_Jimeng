@@ -1270,29 +1270,51 @@ class ApiClient:
             if status != 50:
                 return None
 
-            # 先从 resources 提取图片
             image_urls = []
-            resources = history_data.get("resources", [])
-            if resources:
-                for resource in resources:
-                    if resource.get("type") == "image":
-                        image_info = resource.get("image_info", {})
-                        image_url = image_info.get("image_url")
-                        if image_url:
-                            image_urls.append(image_url)
 
-            # 如果 resources 没有，再从 item_list 提取
+            # 解析 draft_content，收集上传参考图的 URI，用于过滤 resources 中的原图
+            upload_image_uris = set()
+            try:
+                draft_content_str = history_data.get("draft_content", "")
+                if draft_content_str:
+                    draft_content_dict = json.loads(draft_content_str)
+                    component_list = draft_content_dict.get("component_list", [])
+                    for component in component_list:
+                        abilities = component.get("abilities", {})
+                        blend_data = abilities.get("blend", {})
+                        ability_list = blend_data.get("ability_list", [])
+                        for ability in ability_list:
+                            if ability.get("name") == "byte_edit":
+                                for _uri in ability.get("image_uri_list", []):
+                                    upload_image_uris.add(_uri)
+            except Exception as e:
+                logger.debug(f"[Jimeng] 按 submit_id 解析 draft_content 失败（忽略，不影响结果提取）: {e}")
+
+            # 优先从 item_list 提取“生成结果”图片（这是官网最终结果的权威来源）
+            item_list = history_data.get("item_list", [])
+            for item in item_list:
+                image = item.get("image", {})
+                if image and "large_images" in image:
+                    for large_image in image["large_images"]:
+                        u = large_image.get("image_url")
+                        if u:
+                            image_urls.append(u)
+                elif image and image.get("image_url"):
+                    image_urls.append(image["image_url"])
+
+            # 如果 item_list 没有提取到，则回退从 resources 提取，并过滤掉参考图
             if not image_urls:
-                item_list = history_data.get("item_list", [])
-                for item in item_list:
-                    image = item.get("image", {})
-                    if image and "large_images" in image:
-                        for large_image in image["large_images"]:
-                            u = large_image.get("image_url")
-                            if u:
-                                image_urls.append(u)
-                    elif image and image.get("image_url"):
-                        image_urls.append(image["image_url"])
+                resources = history_data.get("resources", [])
+                if resources:
+                    for resource in resources:
+                        if resource.get("type") == "image":
+                            resource_uri = resource.get("key")
+                            if upload_image_uris and resource_uri in upload_image_uris:
+                                continue  # 跳过参考图
+                            image_info = resource.get("image_info", {})
+                            image_url = image_info.get("image_url")
+                            if image_url:
+                                image_urls.append(image_url)
 
             return image_urls if image_urls else None
 
