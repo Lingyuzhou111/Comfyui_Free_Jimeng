@@ -348,16 +348,25 @@ class ApiClient:
                 
                 for attempt in range(max_retries):
                     time.sleep(check_interval)
-                    image_urls = self._get_generated_images_by_history_id(history_id)
+                    # 优先按 submit_id 轮询（官网记录页按提交ID归档）
+                    submit_id = result.get("submit_id")
+                    image_urls = self._get_generated_images_by_submit_id(submit_id) if submit_id else None
+                    if not image_urls:
+                        # 回落到按 history_id 轮询
+                        image_urls = self._get_generated_images_by_history_id(history_id)
                     if image_urls:
                         urls_to_download = image_urls[:num_images]
-                        images = self._download_images(urls_to_download)
+                        # 统一尺寸到当前比例对应的宽高，确保 torch.cat 不会因尺寸不一致报错
+                        width, height = self._get_ratio_dimensions(ratio)
+                        images = self._download_images(urls_to_download, target_size=(width, height))
                         if not images:
                             return self._create_error_result("下载图片失败，可能链接已失效。")
                         
                         image_batch = torch.cat(images, dim=0)
                         generation_info = self._generate_info_text(prompt, model, ratio, len(images))
-                        image_urls_text = "\n\n".join(urls_to_download)
+                        # 为返回的URL追加history_id，提升可见性与可追踪性
+                        urls_with_history = [(u + f"&history_id={history_id}") if "?" in u else (u + f"?history_id={history_id}") for u in urls_to_download]
+                        image_urls_text = "\n\n".join(urls_with_history)
                         
                         # 清理临时文件
                         try:
@@ -381,13 +390,18 @@ class ApiClient:
                 return self._create_error_result("API未返回图片URL。")
             
             urls_to_download = urls[:num_images]
-            images = self._download_images(urls_to_download)
+            # 统一尺寸到当前比例对应的宽高
+            width, height = self._get_ratio_dimensions(ratio)
+            images = self._download_images(urls_to_download, target_size=(width, height))
             if not images:
                 return self._create_error_result("下载图片失败，可能链接已失效。")
             
             image_batch = torch.cat(images, dim=0)
             generation_info = self._generate_info_text(prompt, model, ratio, len(images))
-            image_urls = "\n\n".join(urls_to_download)
+            # 为返回的URL追加history_id，提升可见性与可追踪性
+            history_id_local = result.get("history_record_id", "")
+            urls_with_history = [(u + f"&history_id={history_id_local}") if "?" in u else (u + f"?history_id={history_id_local}") for u in urls_to_download] if history_id_local else urls_to_download
+            image_urls = "\n\n".join(urls_with_history)
 
             # 清理临时文件
             try:
@@ -772,6 +786,7 @@ class ApiClient:
             logger.debug(f"[Jimeng] 待上传参考图路径: {paths}")
             # 上传图片（多张）
             image_uris = []
+            image_meta = {}
             for p in paths:
                 uri = self._upload_image(p, upload_token)
                 if not uri:
@@ -780,6 +795,14 @@ class ApiClient:
                 image_uris.append(uri)
                 # 可选：逐张验证
                 self._verify_uploaded_image(uri)
+                # 记录参考图的元数据（宽、高、格式），供网页端展示
+                try:
+                    with Image.open(p) as im:
+                        w, h = im.size
+                        fmt = (im.format or "").lower()
+                except Exception:
+                    w, h, fmt = 0, 0, ""
+                image_meta[uri] = {"width": w, "height": h, "format": fmt}
 
             logger.debug(f"[Jimeng] 图片上传成功, 数量: {len(image_uris)}")
             
@@ -796,13 +819,15 @@ class ApiClient:
             submit_id = str(uuid.uuid4())
             draft_id = "adffa4e0-fced-fc0c-b972-5c5a0f51cb2f"  # 固定draft_id与示例一致
             component_id = "c440938a-d652-fc79-1a48-c516d848094c"  # 固定component_id与示例一致
+            # 补充分辨率类型，用于 large_image_info.resolution_type
+            resolution_type = self.config.get("params", {}).get("resolution_type", "2k")
             
             # 准备babi_param
             babi_param = {
                 "scenario": "image_video_generation",
-                "feature_key": "to_image_referenceimage_generate",
+                "feature_key": "aigc_to_image",
                 "feature_entrance": "to_image",
-                "feature_entrance_detail": "to_image-referenceimage-byte_edit"
+                "feature_entrance_detail": "to_image"
             }
             
             # 给提示词增加前缀，如示例中的"##​"
@@ -815,14 +840,23 @@ class ApiClient:
                 "min_version": "3.0.2",
                 "min_features": [],
                 "is_from_tsn": True,
-                "version": "3.1.5",
+                "version": "3.3.2",
                 "main_component_id": component_id,
                 "component_list": [{
                     "type": "image_base_component",
                     "id": component_id,
                     "min_version": "3.0.2",
+                    "gen_type": 12,
                     "generate_type": "blend",
                     "aigc_mode": "workbench",
+                    "metadata": {
+                        "type": "",
+                        "id": str(uuid.uuid4()),
+                        "created_platform": 3,
+                        "created_platform_version": "",
+                        "created_time_in_ms": str(int(time.time() * 1000)),
+                        "created_did": ""
+                    },
                     "abilities": {
                         "type": "",
                         "id": "df594b0f-9e1f-08ff-c031-54fdb2fff8b3",
@@ -841,8 +875,10 @@ class ApiClient:
                                     "type": "",
                                     "id": "364336a8-c4c7-fbaa-c876-4402656ab195",
                                     "height": height,
-                                    "width": width
-                                }
+                                    "width": width,
+                                    "resolution_type": resolution_type
+                                },
+                                "intelligent_ratio": False
                             },
                             "ability_list": [{
                                 "type": "",
@@ -856,9 +892,9 @@ class ApiClient:
                                     "platform_type": 1,
                                     "name": "",
                                     "image_uri": uri,
-                                    "width": 0,
-                                    "height": 0,
-                                    "format": "",
+                                    "width": image_meta.get(uri, {}).get("width", 0),
+                                    "height": image_meta.get(uri, {}).get("height", 0),
+                                    "format": image_meta.get(uri, {}).get("format", ""),
                                     "uri": uri
                                 }],
                                 "strength": 0.5
@@ -884,22 +920,45 @@ class ApiClient:
             
             # 准备请求数据
             url = f"{self.base_url}/mweb/v1/aigc_draft/generate"
+            # 对齐网页埋点
+            metrics_extra = {
+                "promptSource": "custom",
+                "generateCount": 1,
+                "enterFrom": "reprompt",
+                "templateId": "0",
+                "generateId": submit_id,
+                "isRegenerate": False
+            }
             data = {
                 "extend": {
                     "root_model": model_req_key,
                     "template_id": ""
                 },
                 "submit_id": submit_id,
-                "draft_content": json.dumps(draft_content)
+                "metrics_extra": json.dumps(metrics_extra),
+                "draft_content": json.dumps(draft_content),
+                "http_common_info": {"aid": self.aid}
             }
             
             params = {
                 "babi_param": json.dumps(babi_param),
                 "aid": self.aid,
                 "device_platform": "web",
-                "region": "CN",
-                "web_id": self.token_manager.get_web_id()
+                "region": "cn",
+                "webId": self.token_manager.get_web_id(),
+                # 网页端期望的埋点/版本参数
+                "da_version": "3.3.2",
+                "web_component_open_flag": "1",
+                "web_version": "7.5.0",
+                "aigc_features": "app_lip_sync"
             }
+            # 将 msToken 与 a_bogus 放入 URL 参数（与官网一致）
+            token_info = self.token_manager.get_token('/mweb/v1/aigc_draft/generate')
+            if token_info:
+                if token_info.get("msToken"):
+                    params["msToken"] = token_info["msToken"]
+                if token_info.get("a_bogus"):
+                    params["a_bogus"] = token_info["a_bogus"]
             
             # 发送生成请求
             response = self._send_request("POST", url, params=params, json=data)
@@ -937,14 +996,15 @@ class ApiClient:
                 return {
                     "is_queued": True,
                     "queue_message": queue_msg,
-                    "history_id": history_id
+                    "history_id": history_id,
+                    "submit_id": submit_id
                 }
             
             if first_check_result:
                 logger.debug("[Jimeng] 参考图生成成功，无需等待")
-                return {"urls": first_check_result, "history_record_id": history_id}
+                return {"urls": first_check_result, "history_record_id": history_id, "submit_id": submit_id}
             
-            return {"urls": [], "history_record_id": history_id}
+            return {"urls": [], "history_record_id": history_id, "submit_id": submit_id}
             
         except Exception as e:
             logger.error(f"[Jimeng] Error generating image with reference: {e}")
@@ -958,9 +1018,20 @@ class ApiClient:
             params = {
                 "aid": self.aid,
                 "device_platform": "web",
-                "region": "CN",
-                "web_id": self.token_manager.get_web_id()
+                "region": "cn",
+                "webId": self.token_manager.get_web_id(),
+                "da_version": "3.3.2",
+                "web_component_open_flag": "1",
+                "web_version": "7.5.0",
+                "aigc_features": "app_lip_sync"
             }
+            # 将 msToken 与 a_bogus 放入 URL 参数，保持与提交接口一致
+            token_info = self.token_manager.get_token('/mweb/v1/get_history_by_ids')
+            if token_info:
+                if token_info.get("msToken"):
+                    params["msToken"] = token_info["msToken"]
+                if token_info.get("a_bogus"):
+                    params["a_bogus"] = token_info["a_bogus"]
             
             data = {
                 "history_ids": [history_id],
@@ -1040,9 +1111,19 @@ class ApiClient:
             params = {
                 "aid": self.aid,
                 "device_platform": "web",
-                "region": "CN",
-                "web_id": self.token_manager.get_web_id()
+                "region": "cn",
+                "webId": self.token_manager.get_web_id(),
+                "da_version": "3.3.2",
+                "web_component_open_flag": "1",
+                "web_version": "7.5.0",
+                "aigc_features": "app_lip_sync"
             }
+            token_info = self.token_manager.get_token('/mweb/v1/get_history_by_ids')
+            if token_info:
+                if token_info.get("msToken"):
+                    params["msToken"] = token_info["msToken"]
+                if token_info.get("a_bogus"):
+                    params["a_bogus"] = token_info["a_bogus"]
             
             data = {
                 "history_ids": [history_id],
@@ -1134,6 +1215,91 @@ class ApiClient:
             logger.error(f"[Jimeng] 检查生成状态时发生错误: {e}")
             return None
 
+    def _get_generated_images_by_submit_id(self, submit_id: str):
+        """通过 submit_id 获取生成的图片（图生图/通用），与官网查询示例对齐
+        Args:
+            submit_id: 提交ID
+        Returns:
+            list: 图片URL列表
+        """
+        try:
+            url = f"{self.base_url}/mweb/v1/get_history_by_ids"
+            params = {
+                "aid": self.aid,
+                "device_platform": "web",
+                "region": "cn",
+                "webId": self.token_manager.get_web_id(),
+                "da_version": "3.3.2",
+                "web_component_open_flag": "1",
+                "web_version": "7.5.0",
+                "aigc_features": "app_lip_sync"
+            }
+            token_info = self.token_manager.get_token('/mweb/v1/get_history_by_ids')
+            if token_info:
+                if token_info.get("msToken"):
+                    params["msToken"] = token_info["msToken"]
+                if token_info.get("a_bogus"):
+                    params["a_bogus"] = token_info["a_bogus"]
+
+            data = {
+                "submit_ids": [submit_id],
+                "image_info": {
+                    "width": 2048,
+                    "height": 2048,
+                    "format": "webp",
+                    "image_scene_list": [
+                        {"scene": "normal", "width": 2400, "height": 2400, "uniq_key": "2400", "format": "webp"},
+                        {"scene": "loss", "width": 1080, "height": 1080, "uniq_key": "1080", "format": "webp"},
+                        {"scene": "loss", "width": 720, "height": 720, "uniq_key": "720", "format": "webp"},
+                        {"scene": "loss", "width": 480, "height": 480, "uniq_key": "480", "format": "webp"},
+                        {"scene": "loss", "width": 360, "height": 360, "uniq_key": "360", "format": "webp"}
+                    ]
+                }
+            }
+
+            result = self._send_request("POST", url, params=params, json=data)
+            if not result or str(result.get("ret")) != "0":
+                logger.error(f"[Jimeng] 按 submit_id 获取生成状态失败: {result}")
+                return None
+
+            history_data = result.get("data", {}).get(submit_id, {})
+            if not history_data:
+                return None
+
+            status = history_data.get("status")
+            if status != 50:
+                return None
+
+            # 先从 resources 提取图片
+            image_urls = []
+            resources = history_data.get("resources", [])
+            if resources:
+                for resource in resources:
+                    if resource.get("type") == "image":
+                        image_info = resource.get("image_info", {})
+                        image_url = image_info.get("image_url")
+                        if image_url:
+                            image_urls.append(image_url)
+
+            # 如果 resources 没有，再从 item_list 提取
+            if not image_urls:
+                item_list = history_data.get("item_list", [])
+                for item in item_list:
+                    image = item.get("image", {})
+                    if image and "large_images" in image:
+                        for large_image in image["large_images"]:
+                            u = large_image.get("image_url")
+                            if u:
+                                image_urls.append(u)
+                    elif image and image.get("image_url"):
+                        image_urls.append(image["image_url"])
+
+            return image_urls if image_urls else None
+
+        except Exception as e:
+            logger.error(f"[Jimeng] 检查生成状态（按 submit_id）时发生错误: {e}")
+            return None
+
     def _get_queue_info_from_response(self, history_id):
         """从API响应中获取排队信息"""
         try:
@@ -1142,9 +1308,19 @@ class ApiClient:
             params = {
                 "aid": self.aid,
                 "device_platform": "web",
-                "region": "CN",
-                "web_id": self.token_manager.get_web_id()
+                "region": "cn",
+                "webId": self.token_manager.get_web_id(),
+                "da_version": "3.3.2",
+                "web_component_open_flag": "1",
+                "web_version": "7.5.0",
+                "aigc_features": "app_lip_sync"
             }
+            token_info = self.token_manager.get_token('/mweb/v1/get_history_by_ids')
+            if token_info:
+                if token_info.get("msToken"):
+                    params["msToken"] = token_info["msToken"]
+                if token_info.get("a_bogus"):
+                    params["a_bogus"] = token_info["a_bogus"]
             
             data = {
                 "history_ids": [history_id],
@@ -1260,12 +1436,13 @@ class ApiClient:
         error_image = torch.ones(1, 256, 256, 3) * torch.tensor([1.0, 0.0, 0.0])
         return (error_image, f"错误: {error_msg}", "")
 
-    def _download_images(self, urls: List[str]) -> List[torch.Tensor]:
-        """下载图片并转换为张量
+    def _download_images(self, urls: List[str], target_size: Optional[Tuple[int, int]] = None) -> List[torch.Tensor]:
+        """下载图片并转换为统一尺寸的张量
         Args:
             urls: 图片URL列表
+            target_size: 期望的 (width, height)，用于统一所有图片尺寸；为 None 时不缩放
         Returns:
-            List[torch.Tensor]: 图片张量列表
+            List[torch.Tensor]: 图片张量列表 (形状: [1, H, W, 3])
         """
         images = []
         for url in urls:
@@ -1273,9 +1450,23 @@ class ApiClient:
                 response = requests.get(url, timeout=60)
                 response.raise_for_status()
                 img_data = response.content
-                
+
                 pil_image = Image.open(io.BytesIO(img_data)).convert("RGB")
+                w, h = pil_image.size
+                if w < 2 or h < 2:
+                    logger.warning(f"[Jimeng] 跳过异常尺寸图片 {url}: {w}x{h}")
+                    continue
+
+                # 若提供统一目标尺寸，则按配置的比例尺寸统一缩放
+                if target_size and all(isinstance(v, int) and v > 0 for v in target_size):
+                    tw, th = target_size
+                    try:
+                        pil_image = pil_image.resize((tw, th), resample=Image.LANCZOS)
+                    except Exception as re:
+                        logger.warning(f"[Jimeng] 图片缩放失败，保留原尺寸 {w}x{h}: {re}")
+
                 np_image = np.array(pil_image, dtype=np.float32) / 255.0
+                # 期望形状为 [1, H, W, 3]
                 tensor_image = torch.from_numpy(np_image).unsqueeze(0)
                 images.append(tensor_image)
             except Exception as e:
