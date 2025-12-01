@@ -49,6 +49,12 @@
         },
         "default_ratio": "1:1",
         "models": {
+            "4.1": {
+                "name": "图片 4.1",
+                "model_req_key": "high_aes_general_v41",
+                "description": "影视质感，文字更准，直出4k高清图",
+                "features": ["新模型", "默认场景", "人脸交换", "背景绘画", "文本到图像生成", "ETTA", "角色生成"]
+            },
             "4.0": {
                 "name": "图片 4.0",
                 "model_req_key": "high_aes_general_v40",
@@ -133,3 +139,4 @@
     }
 
 } 
+
