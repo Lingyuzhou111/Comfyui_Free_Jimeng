@@ -91,24 +91,6 @@
                 "model_req_key": "high_aes_general_v30l:general_v3.0_18b",
                 "description": "影视质感，文字更准，直出2k高清图",
                 "features": ["新模型", "默认场景", "人脸交换", "背景绘画", "文本到图像生成", "ETTA", "角色生成"]
-            },
-            "2.1": {
-                "name": "图片 2.1",
-                "model_req_key": "high_aes_general_v21_L:general_v2.1_L",
-                "description": "稳定的结构和更强的影视质感，支持生成中、英文文字",
-                "features": ["新模型", "默认场景", "人脸交换", "背景绘画", "文本到图像生成", "ETTA", "角色生成"]
-            },
-            "2.0p": {
-                "name": "图片 2.0 Pro",
-                "model_req_key": "high_aes_general_v20_L:general_v2.0_L",
-                "description": "大幅提升了多样性和真实的照片质感，开启创新与设计的视觉梦境",
-                "features": ["默认场景", "文本到图像生成", "人脸交换", "背景绘画", "限时折扣", "字节编辑", "风格参考"]
-            },
-            "2.0": {
-                "name": "图片 2.0",
-                "model_req_key": "high_aes_general_v20:general_v2.0",
-                "description": "更精准的描述词响应和多样的风格组合，模型极具想象力！",
-                "features": ["默认场景", "文本到图像生成", "人脸交换", "背景绘画", "Canny边缘检测", "深度图", "姿态估计", "风格参考", "IP保持"]
             }
         },
         "default_model": "3.0"
@@ -154,6 +136,7 @@
     }
 
 } 
+
 
 
 
