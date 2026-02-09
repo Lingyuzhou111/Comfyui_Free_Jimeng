@@ -50,22 +50,34 @@
         },
         "default_ratio": "1:1",
         "models": {
+            "5.0": {
+                "name": "图片 5.0",
+                "model_req_key": "high_aes_general_v50",
+                "description": "指令响应更精准，生成效果更智能",
+                "features": ["知识推理", "实时检索", "语义理解", "泛知识"]
+            },
+            "4.6": {
+                "name": "图片 4.6",
+                "model_req_key": "high_aes_general_v42",
+                "description": "人像一致性保持更好，性价比更高",
+                "features": ["新模型", "默认场景", "人脸交换"]
+            },
             "4.5": {
                 "name": "图片 4.5",
                 "model_req_key": "high_aes_general_v40l",
-                "description": "影视质感，文字更准，直出4k高清图",
-                "features": ["新模型", "默认场景", "人脸交换", "背景绘画", "文本到图像生成", "ETTA", "角色生成"]
+                "description": "强化一致性、风格与图文响应",
+                "features": ["深度编辑", "人像场景", "美观度", "画面美感", "组图生成"]
             },
             "4.1": {
                 "name": "图片 4.1",
                 "model_req_key": "high_aes_general_v41",
-                "description": "影视质感，文字更准，直出4k高清图",
+                "description": "更专业的创意、美学和一致性保持",
                 "features": ["新模型", "默认场景", "人脸交换", "背景绘画", "文本到图像生成", "ETTA", "角色生成"]
             },
             "4.0": {
                 "name": "图片 4.0",
                 "model_req_key": "high_aes_general_v40",
-                "description": "影视质感，文字更准，直出2k高清图",
+                "description": "影视质感，文字更准，直出4k高清图",
                 "features": ["新模型", "默认场景", "人脸交换", "背景绘画", "文本到图像生成", "ETTA", "角色生成"]
             },
             "3.1": {
@@ -106,6 +118,15 @@
         "retention_days": 7
     },
     "video_models": {
+        "seedance 2.0": {
+            "name": "seedance 2.0",
+            "model_req_key": "dreamina_seedance_40_pro",
+            "benefit_type": "dreamina_video_seedance_20_pro",
+            "resource_id": "generate_video",
+            "functionMode": "omni_reference",
+            "description": "新的视频模型Seedance 2.0",
+            "features": ["新模型"]
+        },
         "v3.0": {
             "name": "视频 3.0",
             "model_req_key": "dreamina_ic_generate_video_model_vgfm_3.0",
@@ -114,20 +135,7 @@
             "feature_entrance_detail": "to_image-text_to_video",
             "description": "新的视频模型 3.0",
             "features": ["新模型"]
-        },
-        "s2.0p": {
-            "name": "视频 S2.0 Pro",
-            "model_req_key": "dreamina_ic_generate_video_model_vgfm1.0",
-            "description": "更合理的动效, 更生动自然的运镜",
-            "features": ["合理动效", "自然运镜"]
-        },
-        "s2.0": {
-            "name": "视频 S2.0",
-            "model_req_key": "dreamina_ic_generate_video_model_vgfm_lite",
-            "description": "更快的生成速度, 兼顾高品质效果",
-            "features": ["快速生成", "高品质"]
         }
-
     },
     "video_ratios": {
         "21:9": {"width": 1024, "height": 394},
@@ -146,6 +154,7 @@
     }
 
 } 
+
 
 
 
