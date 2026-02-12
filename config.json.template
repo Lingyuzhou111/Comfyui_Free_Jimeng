@@ -50,8 +50,8 @@
         },
         "default_ratio": "1:1",
         "models": {
-            "5.0": {
-                "name": "图片 5.0",
+            "5.0 Lite": {
+                "name": "图片 5.0 Lite",
                 "model_req_key": "high_aes_general_v50",
                 "description": "指令响应更精准，生成效果更智能",
                 "features": ["知识推理", "实时检索", "语义理解", "泛知识"]
@@ -136,6 +136,7 @@
     }
 
 } 
+
 
 
 
